@@ -1,5 +1,11 @@
 from fastapi import APIRouter, HTTPException, Request
 
+import asyncpg
+
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 router = APIRouter()
 
 
@@ -15,39 +21,43 @@ async def get_stats(request: Request):
     """Get system-wide statistics."""
     pool = _get_pool(request)
 
-    async with pool.acquire() as conn:
-        doc_count = await conn.fetchval("SELECT COUNT(*) FROM documents")
-        mem_count = await conn.fetchval("SELECT COUNT(*) FROM memories")
-        rel_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM memory_relationships"
-        )
+    try:
+        async with pool.acquire() as conn:
+            doc_count = await conn.fetchval("SELECT COUNT(*) FROM documents")
+            mem_count = await conn.fetchval("SELECT COUNT(*) FROM memories")
+            rel_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM memory_relationships"
+            )
 
-        memories_by_type = await conn.fetch(
-            """
-            SELECT memory_type, COUNT(*) as count
-            FROM memories
-            WHERE is_latest = TRUE
-            GROUP BY memory_type
-            ORDER BY count DESC
-            """
-        )
+            memories_by_type = await conn.fetch(
+                """
+                SELECT memory_type, COUNT(*) as count
+                FROM memories
+                WHERE is_latest = TRUE
+                GROUP BY memory_type
+                ORDER BY count DESC
+                """
+            )
 
-        docs_by_status = await conn.fetch(
-            """
-            SELECT status, COUNT(*) as count
-            FROM documents
-            GROUP BY status
-            ORDER BY count DESC
-            """
-        )
+            docs_by_status = await conn.fetch(
+                """
+                SELECT status, COUNT(*) as count
+                FROM documents
+                GROUP BY status
+                ORDER BY count DESC
+                """
+            )
 
-        embedded_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM memories WHERE embedding IS NOT NULL"
-        )
+            embedded_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM memories WHERE embedding IS NOT NULL"
+            )
 
-        container_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM containers"
-        )
+            container_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM containers"
+            )
+    except asyncpg.PostgresError as e:
+        logger.error("stats.query_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to retrieve statistics")
 
     return {
         "documents": {

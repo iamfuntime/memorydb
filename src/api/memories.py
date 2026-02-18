@@ -1,6 +1,12 @@
 from fastapi import APIRouter, HTTPException, Request
 from uuid import UUID
 
+import asyncpg
+
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 router = APIRouter()
 
 
@@ -15,7 +21,11 @@ def _get_storage(request: Request):
 async def get_memory(memory_id: UUID, request: Request):
     """Get a specific memory."""
     storage = _get_storage(request)
-    memory = await storage.get_memory(memory_id)
+    try:
+        memory = await storage.get_memory(memory_id)
+    except asyncpg.PostgresError as e:
+        logger.error("memories.get_failed", memory_id=str(memory_id), error=str(e))
+        raise HTTPException(status_code=500, detail="Database error")
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
     # Remove embedding from response (too large)
@@ -29,7 +39,11 @@ async def get_memory(memory_id: UUID, request: Request):
 async def delete_memory(memory_id: UUID, request: Request):
     """Delete a memory."""
     storage = _get_storage(request)
-    deleted = await storage.delete_memory(memory_id)
+    try:
+        deleted = await storage.delete_memory(memory_id)
+    except asyncpg.PostgresError as e:
+        logger.error("memories.delete_failed", memory_id=str(memory_id), error=str(e))
+        raise HTTPException(status_code=500, detail="Database error")
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory not found")
     return {"id": str(memory_id), "deleted": True}
@@ -43,12 +57,18 @@ async def get_related_memories(
 ):
     """Get memories related to this one via graph edges."""
     storage = _get_storage(request)
-    # Verify memory exists
-    memory = await storage.get_memory(memory_id)
-    if not memory:
-        raise HTTPException(status_code=404, detail="Memory not found")
+    try:
+        # Verify memory exists
+        memory = await storage.get_memory(memory_id)
+        if not memory:
+            raise HTTPException(status_code=404, detail="Memory not found")
 
-    related = await storage.get_related_memories(memory_id, relationship_type)
+        related = await storage.get_related_memories(memory_id, relationship_type)
+    except HTTPException:
+        raise
+    except asyncpg.PostgresError as e:
+        logger.error("memories.get_related_failed", memory_id=str(memory_id), error=str(e))
+        raise HTTPException(status_code=500, detail="Database error")
     results = []
     for r in related:
         item = dict(r)
@@ -61,8 +81,15 @@ async def get_related_memories(
 @router.patch("/{memory_id}")
 async def update_memory(memory_id: UUID, updates: dict, request: Request):
     """Update memory metadata/tags."""
+    if not isinstance(updates, dict):
+        raise HTTPException(status_code=400, detail="Request body must be a JSON object")
+
     storage = _get_storage(request)
-    result = await storage.update_memory(memory_id, **updates)
+    try:
+        result = await storage.update_memory(memory_id, **updates)
+    except asyncpg.PostgresError as e:
+        logger.error("memories.update_failed", memory_id=str(memory_id), error=str(e))
+        raise HTTPException(status_code=500, detail="Database error")
     if not result:
         raise HTTPException(status_code=404, detail="Memory not found")
     result.pop("embedding", None)

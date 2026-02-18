@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request
 from uuid import UUID
 
+import asyncpg
+
 from src.models.document import DocumentCreate, DocumentResponse, DocumentDetail
 from src.utils.logger import get_logger
 
@@ -21,16 +23,25 @@ async def create_document(doc: DocumentCreate, request: Request):
     """Ingest a new document for processing."""
     storage = _get_storage(request)
 
+    if not doc.content or not doc.content.strip():
+        raise HTTPException(status_code=400, detail="Content must not be empty")
+    if not doc.container or not doc.container.strip():
+        raise HTTPException(status_code=400, detail="Container must not be empty")
+
     source_url = doc.content if doc.content_type == "url" else None
     raw_content = doc.content if doc.content_type != "url" else None
 
-    doc_id = await storage.add_document(
-        container=doc.container,
-        content_type=doc.content_type,
-        raw_content=raw_content,
-        source_url=source_url,
-        metadata={**doc.metadata, "tags": doc.tags},
-    )
+    try:
+        doc_id = await storage.add_document(
+            container=doc.container,
+            content_type=doc.content_type,
+            raw_content=raw_content,
+            source_url=source_url,
+            metadata={**doc.metadata, "tags": doc.tags},
+        )
+    except asyncpg.PostgresError as e:
+        logger.error("documents.create_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to create document")
 
     # Schedule background processing if pipeline is available
     pipeline = getattr(request.app.state, "pipeline", None)
@@ -52,7 +63,11 @@ async def create_document(doc: DocumentCreate, request: Request):
 async def get_document(doc_id: UUID, request: Request):
     """Get document status and details."""
     storage = _get_storage(request)
-    document = await storage.get_document(doc_id)
+    try:
+        document = await storage.get_document(doc_id)
+    except asyncpg.PostgresError as e:
+        logger.error("documents.get_failed", doc_id=str(doc_id), error=str(e))
+        raise HTTPException(status_code=500, detail="Database error")
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     return DocumentDetail(**document)
@@ -62,7 +77,11 @@ async def get_document(doc_id: UUID, request: Request):
 async def delete_document(doc_id: UUID, request: Request):
     """Delete a document and its associated memories."""
     storage = _get_storage(request)
-    deleted = await storage.delete_document(doc_id)
+    try:
+        deleted = await storage.delete_document(doc_id)
+    except asyncpg.PostgresError as e:
+        logger.error("documents.delete_failed", doc_id=str(doc_id), error=str(e))
+        raise HTTPException(status_code=500, detail="Database error")
     if not deleted:
         raise HTTPException(status_code=404, detail="Document not found")
     return {"id": str(doc_id), "deleted": True}
@@ -77,6 +96,15 @@ async def list_documents(
     offset: int = 0,
 ):
     """List documents with filtering."""
+    if limit < 0 or offset < 0:
+        raise HTTPException(status_code=400, detail="limit and offset must be non-negative")
+    if limit > 1000:
+        raise HTTPException(status_code=400, detail="limit must not exceed 1000")
+
     storage = _get_storage(request)
-    docs = await storage.list_documents(container, status, limit, offset)
+    try:
+        docs = await storage.list_documents(container, status, limit, offset)
+    except asyncpg.PostgresError as e:
+        logger.error("documents.list_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Database error")
     return {"documents": docs, "total": len(docs)}

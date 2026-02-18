@@ -265,7 +265,10 @@ class MemoryStorage:
             result = await conn.execute(
                 "DELETE FROM memories WHERE container = $1", name
             )
-            count = int(result.split()[-1])
+            try:
+                count = int(result.split()[-1])
+            except (ValueError, IndexError):
+                count = 0
             await conn.execute(
                 "DELETE FROM containers WHERE name = $1", name
             )
