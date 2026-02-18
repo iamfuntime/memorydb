@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException, Request
 from uuid import UUID
 
 from src.models.document import DocumentCreate, DocumentResponse, DocumentDetail
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -28,6 +31,12 @@ async def create_document(doc: DocumentCreate, request: Request):
         source_url=source_url,
         metadata={**doc.metadata, "tags": doc.tags},
     )
+
+    # Schedule background processing if pipeline is available
+    pipeline = getattr(request.app.state, "pipeline", None)
+    if pipeline:
+        pipeline.schedule(doc_id)
+        logger.info("documents.processing_scheduled", doc_id=str(doc_id))
 
     document = await storage.get_document(doc_id)
     return DocumentResponse(

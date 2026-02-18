@@ -3,10 +3,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api import health, documents, memories, containers, search
+from src.api import health, documents, memories, containers, search, profile, stats
 from src.engine.storage import MemoryStorage
 from src.engine.search import HybridSearch
+from src.engine.pipeline import ProcessingPipeline
 from src.engine.providers.embedding import get_embedding_provider
+from src.engine.providers.llm import get_llm_provider
 from src.utils.db import get_pool, close_pool
 from src.utils.logger import setup_logging, get_logger
 
@@ -44,11 +46,41 @@ async def lifespan(app: FastAPI):
             app.state.search_engine = None
             app.state.embedding_provider = None
 
+        # Initialize LLM provider (optional)
+        llm_provider_name = getattr(app.state, "llm_provider_name", "openai")
+        llm_model = getattr(app.state, "llm_model", "gpt-4o-mini")
+        llm_kwargs = {}
+        if hasattr(app.state, "openai_api_key") and app.state.openai_api_key:
+            llm_kwargs["api_key"] = app.state.openai_api_key
+        if hasattr(app.state, "anthropic_api_key") and app.state.anthropic_api_key:
+            llm_kwargs["api_key"] = app.state.anthropic_api_key
+        if hasattr(app.state, "ollama_base_url"):
+            llm_kwargs["base_url"] = app.state.ollama_base_url
+
+        try:
+            llm_provider = get_llm_provider(
+                llm_provider_name, model=llm_model, **llm_kwargs
+            )
+            logger.info("memorydb.llm_provider_initialized", provider=llm_provider_name)
+        except Exception as e:
+            logger.warning("memorydb.llm_provider_failed", error=str(e))
+            llm_provider = None
+
+        # Initialize processing pipeline
+        if app.state.embedding_provider:
+            app.state.pipeline = ProcessingPipeline(
+                app.state.storage, app.state.embedding_provider, llm_provider
+            )
+            logger.info("memorydb.pipeline_initialized")
+        else:
+            app.state.pipeline = None
+
         logger.info("memorydb.db_connected")
     else:
         app.state.storage = None
         app.state.search_engine = None
         app.state.embedding_provider = None
+        app.state.pipeline = None
         logger.warning("memorydb.no_database_url")
 
     yield
@@ -78,3 +110,5 @@ app.include_router(documents.router, prefix="/v1/documents", tags=["documents"])
 app.include_router(memories.router, prefix="/v1/memories", tags=["memories"])
 app.include_router(containers.router, prefix="/v1/containers", tags=["containers"])
 app.include_router(search.router, prefix="/v1/search", tags=["search"])
+app.include_router(profile.router, prefix="/v1/profile", tags=["profile"])
+app.include_router(stats.router, prefix="/v1/stats", tags=["stats"])
