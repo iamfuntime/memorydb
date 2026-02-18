@@ -1,0 +1,29 @@
+# Environment and credentials
+.env
+credentials.json
+token.json
+
+# Data (local databases)
+data/
+*.db
+
+# Temporary work
+.tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
