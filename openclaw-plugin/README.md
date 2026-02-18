@@ -126,8 +126,8 @@ Before each agent turn, the user's prompt is searched against stored memories. T
 ```xml
 <relevant-memories>
 The following memories from long-term storage may be relevant:
-- [87%] Seth prefers Elastic SIEM over Splunk (preference)
-- [72%] Production VLAN is 20, Management is 50 (fact)
+- [87%] User prefers PostgreSQL over MySQL for production (preference)
+- [72%] API rate limit is 100 req/min for free tier (fact)
 </relevant-memories>
 ```
 
