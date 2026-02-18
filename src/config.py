@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     # API
     api_port: int = 8080
+    api_token: Optional[str] = None
     log_level: str = "info"
 
     model_config = {"env_file": ".env", "case_sensitive": False}

@@ -52,7 +52,6 @@ All settings are controlled through environment variables. Copy `.env.example` t
 | `POSTGRES_DB` | `memorydb` | PostgreSQL database name |
 | `POSTGRES_USER` | `memory` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | -- | PostgreSQL password (required) |
-| `POSTGRES_PORT` | `5432` | PostgreSQL port on host |
 | `DATABASE_URL` | constructed | Full asyncpg connection string |
 | `EMBEDDING_PROVIDER` | `openai` | Embedding backend: `openai`, `ollama`, `sentence-transformers` |
 | `EMBEDDING_MODEL` | `text-embedding-3-small` | Model name for embeddings |
@@ -62,6 +61,8 @@ All settings are controlled through environment variables. Copy `.env.example` t
 | `ANTHROPIC_API_KEY` | -- | Required if using Anthropic LLM provider |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL for local providers |
 | `API_PORT` | `8080` | Port the API listens on |
+| `API_BIND` | `127.0.0.1` | Bind address: `127.0.0.1` (localhost only) or `0.0.0.0` (all interfaces) |
+| `API_TOKEN` | -- | Bearer token for API authentication (empty = no auth) |
 | `LOG_LEVEL` | `info` | Logging level: `debug`, `info`, `warning`, `error` |
 
 ### Running fully local (no API keys)
@@ -227,7 +228,7 @@ Document --> Extract --> Chunk --> Embed --> LLM Extract --> Graph Build
   queued   extracting  chunking  embedding    indexing         done
 ```
 
-1. **Extract** -- Pull text from the source. Plain text passes through directly. URLs get fetched and converted from HTML to clean text (via trafilatura). PDFs, images, and audio go through their respective parsers (PyMuPDF, pytesseract, Whisper).
+1. **Extract** -- Pull text from the source. Plain text passes through directly. URLs are validated for SSRF safety (see [Security](#security)) then fetched and converted from HTML to clean text (via trafilatura). PDFs, images, and audio go through their respective parsers (PyMuPDF, pytesseract, Whisper).
 
 2. **Chunk** -- Split extracted text into ~500 token pieces. The chunker is content-aware: markdown splits on headings, code splits on function/class boundaries, transcripts split on speaker turns.
 
@@ -262,7 +263,9 @@ PostgreSQL with pgvector handles everything in one database:
 
 ## OpenClaw plugin
 
-The `openclaw-plugin/` directory contains a TypeScript plugin that connects [OpenClaw](https://github.com/nicepkg/openclaw) agents to MemoryDB. It gives every agent automatic long-term memory across all channels (Slack, Telegram, Discord, etc.) with no per-channel setup.
+The `memory-memorydb/` directory contains a TypeScript plugin that connects [OpenClaw](https://github.com/nicepkg/openclaw) agents to MemoryDB. It gives every agent automatic long-term memory across all channels (Slack, Telegram, Discord, etc.) with no per-channel setup.
+
+> **Directory naming:** The plugin directory is named `memory-memorydb` to match the plugin's entry key in `openclaw.json`. OpenClaw's plugin loader warns when the directory name doesn't match the registered plugin name. If you see a path mismatch warning on gateway restart, make sure the directory name and the key under `plugins.entries` are the same.
 
 ### What it does
 
@@ -293,7 +296,7 @@ The plugin requires a running MemoryDB instance and Node.js (for dependency inst
 **Step 1: Install plugin dependencies**
 
 ```bash
-cd openclaw-plugin
+cd memory-memorydb
 npm install
 ```
 
@@ -301,13 +304,13 @@ This installs `@sinclair/typebox` which is needed at runtime for tool parameter 
 
 **Step 2: Add the plugin to your OpenClaw config**
 
-Point OpenClaw at the plugin directory via `plugins.load.paths`, enable it, and assign it the memory slot:
+Point OpenClaw at the plugin directory via `plugins.load.paths`, enable it, and assign it the memory slot. The directory name must match the plugin entry key (`memory-memorydb`):
 
 ```json
 {
   "plugins": {
     "load": {
-      "paths": ["/path/to/memorydb/openclaw-plugin"]
+      "paths": ["/path/to/memorydb/memory-memorydb"]
     },
     "slots": {
       "memory": "memory-memorydb"
@@ -443,7 +446,7 @@ Since the plugin is loaded from the local filesystem via `plugins.load.paths`, u
 ```bash
 cd memorydb
 git pull
-cd openclaw-plugin
+cd memory-memorydb
 npm install    # in case dependencies changed
 ```
 
@@ -454,6 +457,31 @@ openclaw gateway restart
 ```
 
 No reinstallation or config changes needed -- the plugin loads from the same path.
+
+---
+
+## Security
+
+### API authentication
+
+Set `API_TOKEN` in `.env` to require a bearer token on all API requests. When set, clients must include `Authorization: Bearer <token>` in every request. When empty, the API is unauthenticated (suitable for localhost-only deployments).
+
+### SSRF protection
+
+The URL extractor validates all user-supplied URLs before fetching. This prevents attackers (or prompt-injected agents) from using the API to reach internal services, cloud metadata endpoints, or localhost.
+
+**What's blocked:**
+
+- Non-HTTP schemes (`ftp://`, `file://`, etc.)
+- Cloud metadata hostnames (`metadata.google.internal`)
+- Any hostname that resolves to a non-public IP: loopback (`127.x`), RFC 1918 (`10.x`, `172.16-31.x`, `192.168.x`), link-local (`169.254.x`), multicast, reserved, and IPv6 equivalents (`::1`, `fe80::`, etc.)
+- Redirect-based bypasses -- every redirect target is re-validated before following, so a public host that 302s to an internal IP is also blocked
+
+Blocked requests raise `SSRFError` (a `ValueError` subclass) with a descriptive message.
+
+### Bind address
+
+Set `API_BIND=127.0.0.1` (the default) to only accept connections from localhost. Use `0.0.0.0` only if the API needs to be reachable over the network, and pair it with `API_TOKEN` for authentication.
 
 ---
 

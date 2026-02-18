@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from src.api import health, documents, memories, containers, search, profile, stats
 from src.config import Settings
@@ -14,6 +16,19 @@ from src.utils.db import get_pool, close_pool
 from src.utils.logger import setup_logging, get_logger
 
 logger = get_logger(__name__)
+
+
+class TokenAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        token = request.app.state.api_token if hasattr(request.app.state, "api_token") else None
+        if not token:
+            return await call_next(request)
+        if request.url.path == "/health":
+            return await call_next(request)
+        auth = request.headers.get("authorization", "")
+        if auth == f"Bearer {token}":
+            return await call_next(request)
+        return JSONResponse(status_code=401, content={"detail": "Missing or invalid API token"})
 
 
 @asynccontextmanager
@@ -105,6 +120,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(TokenAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

@@ -24,6 +24,10 @@ venv/
 .coverage
 htmlcov/
 
+# Node (plugin dependencies)
+node_modules/
+package-lock.json
+
 # OS
 .DS_Store
 Thumbs.db
