@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api import health, documents, memories, containers, search, profile, stats
+from src.config import Settings
 from src.engine.storage import MemoryStorage
 from src.engine.search import HybridSearch
 from src.engine.pipeline import ProcessingPipeline
@@ -17,7 +18,14 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup — load settings from environment
+    try:
+        settings = Settings()
+        for key, value in settings.model_dump().items():
+            setattr(app.state, key, value)
+    except Exception:
+        pass
+
     setup_logging(app.state.log_level if hasattr(app.state, "log_level") else "info")
     logger.info("memorydb.starting")
 
@@ -26,7 +34,7 @@ async def lifespan(app: FastAPI):
         app.state.storage = MemoryStorage(pool)
 
         # Initialize embedding provider and search engine
-        emb_provider = getattr(app.state, "embedding_provider_name", "openai")
+        emb_provider = getattr(app.state, "embedding_provider", getattr(app.state, "embedding_provider_name", "openai"))
         emb_model = getattr(app.state, "embedding_model", "text-embedding-3-small")
         emb_kwargs = {}
         if hasattr(app.state, "openai_api_key") and app.state.openai_api_key:
@@ -47,7 +55,7 @@ async def lifespan(app: FastAPI):
             app.state.embedding_provider = None
 
         # Initialize LLM provider (optional)
-        llm_provider_name = getattr(app.state, "llm_provider_name", "openai")
+        llm_provider_name = getattr(app.state, "llm_provider", getattr(app.state, "llm_provider_name", "openai"))
         llm_model = getattr(app.state, "llm_model", "gpt-4o-mini")
         llm_kwargs = {}
         if hasattr(app.state, "openai_api_key") and app.state.openai_api_key:

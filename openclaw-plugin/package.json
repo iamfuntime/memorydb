@@ -1,0 +1,11 @@
+{
+  "name": "@memorydb/openclaw-plugin",
+  "version": "0.1.0",
+  "description": "OpenClaw plugin for MemoryDB - self-hosted AI agent memory",
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  },
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48"
+  }
+}

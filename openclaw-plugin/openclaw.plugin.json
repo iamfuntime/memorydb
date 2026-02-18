@@ -1,0 +1,85 @@
+{
+  "id": "memory-memorydb",
+  "kind": "memory",
+  "name": "Memory (MemoryDB)",
+  "description": "Self-hosted AI agent memory via MemoryDB REST API with auto-recall and auto-capture",
+  "uiHints": {
+    "baseUrl": {
+      "label": "MemoryDB API URL",
+      "placeholder": "http://localhost:8080",
+      "help": "Base URL of the running MemoryDB instance"
+    },
+    "container": {
+      "label": "Default Container",
+      "placeholder": "vanguard",
+      "help": "Container/namespace for storing memories (isolates per-agent or per-user)"
+    },
+    "autoCapture": {
+      "label": "Auto-Capture",
+      "help": "Automatically capture important information from conversations"
+    },
+    "autoRecall": {
+      "label": "Auto-Recall",
+      "help": "Automatically inject relevant memories into context before each agent turn"
+    },
+    "autoRecallLimit": {
+      "label": "Auto-Recall Limit",
+      "placeholder": "5",
+      "help": "Max memories to inject per turn (default: 5)",
+      "advanced": true
+    },
+    "apiKey": {
+      "label": "API Key (optional)",
+      "sensitive": true,
+      "help": "Bearer token for MemoryDB API authentication (if configured)",
+      "advanced": true
+    },
+    "conversationLog": {
+      "label": "Conversation Logging",
+      "help": "Log all inbound/outbound messages to MemoryDB for full conversation history"
+    },
+    "sessionProfile": {
+      "label": "Session Profile Preload",
+      "help": "Preload container profile (key facts, recent context) at session start"
+    },
+    "inherit": {
+      "label": "Inherit Parent Containers",
+      "help": "Include results from parent containers when searching (e.g. system-level knowledge)",
+      "advanced": true
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": {
+        "type": "string"
+      },
+      "container": {
+        "type": "string"
+      },
+      "autoCapture": {
+        "type": "boolean"
+      },
+      "autoRecall": {
+        "type": "boolean"
+      },
+      "autoRecallLimit": {
+        "type": "number"
+      },
+      "apiKey": {
+        "type": "string"
+      },
+      "conversationLog": {
+        "type": "boolean"
+      },
+      "sessionProfile": {
+        "type": "boolean"
+      },
+      "inherit": {
+        "type": "boolean"
+      }
+    },
+    "required": ["baseUrl"]
+  }
+}
