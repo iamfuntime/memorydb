@@ -6,7 +6,9 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-EXTRACTION_SYSTEM_PROMPT = """You are a memory extraction system. Your job is to extract discrete, meaningful memories from text content.
+def build_extraction_system_prompt(taxonomy: Optional[str] = None) -> str:
+    """Build extraction system prompt, optionally constrained to a taxonomy."""
+    base_prompt = """You are a memory extraction system. Your job is to extract discrete, meaningful memories from text content.
 
 For each piece of content, extract individual memories and classify them:
 - fact: Objective information (e.g., "Team uses PostgreSQL")
@@ -35,12 +37,24 @@ Rules:
 - Confidence reflects how certain the information is
 - Only extract meaningful information, skip greetings and filler"""
 
+    if taxonomy:
+        taxonomy_instructions = f"""
+
+When assigning tags, use ONLY tags from this taxonomy (formatted as "category/value"):
+{taxonomy}
+
+Apply 2-5 tags per memory. If no tags clearly fit, use an empty list."""
+        return base_prompt + taxonomy_instructions
+    
+    return base_prompt
+
 
 class MemoryExtractor:
     """Extract structured memories from text using an LLM."""
 
-    def __init__(self, llm_provider: LLMProvider):
+    def __init__(self, llm_provider: LLMProvider, taxonomy: Optional[str] = None):
         self.llm = llm_provider
+        self.system_prompt = build_extraction_system_prompt(taxonomy)
 
     async def extract(self, text: str) -> list[dict]:
         """Extract memories from text content."""
@@ -55,7 +69,7 @@ class MemoryExtractor:
         prompt = f"Extract memories from the following content:\n\n{text}"
 
         try:
-            response = await self.llm.complete(prompt, EXTRACTION_SYSTEM_PROMPT)
+            response = await self.llm.complete(prompt, self.system_prompt)
             return self._parse_response(response)
         except Exception as e:
             logger.error("extraction.failed", error=str(e))

@@ -64,6 +64,21 @@ All settings are controlled through environment variables. Copy `.env.example` t
 | `API_BIND` | `127.0.0.1` | Bind address: `127.0.0.1` (localhost only) or `0.0.0.0` (all interfaces) |
 | `API_TOKEN` | -- | Bearer token for API authentication (empty = no auth) |
 | `LOG_LEVEL` | `info` | Logging level: `debug`, `info`, `warning`, `error` |
+| `EXTRACTION_TAXONOMY` | -- | Optional tag taxonomy to constrain LLM extraction (see below) |
+
+### Tag Taxonomy
+
+By default, the LLM extraction step generates freeform tags based on the content. To constrain tags to a predefined taxonomy, set `EXTRACTION_TAXONOMY` with your allowed tags:
+
+```bash
+EXTRACTION_TAXONOMY=domain/: security, infrastructure, personal; tool/: elastic, docker; type/: config, lesson, gotcha
+```
+
+**Format:** `category/: value1, value2, value3` with categories separated by semicolons.
+
+When set, the extraction prompt instructs the LLM to use only tags from the taxonomy (formatted as `category/value`). Memories that don't fit any tag will have an empty tag list. When not set, tags remain freeform as before.
+
+This is useful for maintaining consistent tagging across agents or aligning with an existing knowledge base structure.
 
 ### Running fully local (no API keys)
 

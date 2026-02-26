@@ -28,6 +28,7 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       API_TOKEN: ${API_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      EXTRACTION_TAXONOMY: ${EXTRACTION_TAXONOMY:-}
     ports:
       - "${API_BIND:-127.0.0.1}:${API_PORT:-8080}:8080"
     depends_on:

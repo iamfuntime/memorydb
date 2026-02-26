@@ -91,10 +91,11 @@ async def lifespan(app: FastAPI):
 
         # Initialize processing pipeline
         if app.state.embedding_provider:
+            taxonomy = getattr(app.state, "extraction_taxonomy", None)
             app.state.pipeline = ProcessingPipeline(
-                app.state.storage, app.state.embedding_provider, llm_provider
+                app.state.storage, app.state.embedding_provider, llm_provider, taxonomy
             )
-            logger.info("memorydb.pipeline_initialized")
+            logger.info("memorydb.pipeline_initialized", taxonomy_enabled=bool(taxonomy))
         else:
             app.state.pipeline = None
 
