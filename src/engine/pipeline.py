@@ -22,11 +22,12 @@ class ProcessingPipeline:
         storage: MemoryStorage,
         embedding_provider: EmbeddingProvider,
         llm_provider: Optional[LLMProvider] = None,
+        taxonomy: Optional[str] = None,
     ):
         self.storage = storage
         self.embedding_provider = embedding_provider
         self.memory_extractor = (
-            MemoryExtractor(llm_provider) if llm_provider else None
+            MemoryExtractor(llm_provider, taxonomy) if llm_provider else None
         )
         self.graph_builder = GraphBuilder(
             storage, embedding_provider, llm_provider

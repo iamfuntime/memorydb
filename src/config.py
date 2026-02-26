@@ -24,4 +24,7 @@ class Settings(BaseSettings):
     api_token: Optional[str] = None
     log_level: str = "info"
 
+    # Memory extraction
+    extraction_taxonomy: Optional[str] = None
+
     model_config = {"env_file": ".env", "case_sensitive": False}
